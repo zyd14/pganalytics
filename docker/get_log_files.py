@@ -17,11 +17,15 @@ Special Notes:
 """
 
 import boto3
+import os
 
 client = boto3.client('rds')
 
 
-def get_logs() -> dict:
+def get_logs(db_instance_id: str='') -> dict:
+    if db_instance_id:
+        rds_instances = (db_instance for db_instance in
+                         client.describe_db_instances(DBInstanceIdentifier=db_instance_id)['DBInstances']['DBInstanceIdentifier'])
     rds_instances = (db_instance for db_instance in client.describe_db_instances()['DBInstances']['DBInstanceIdentifier'])
     log_refs = {}
     for r in rds_instances:
@@ -32,13 +36,19 @@ def get_logs() -> dict:
 
 
 def download_logs(log_refs: dict):
+    pgbadger_dir = os.getenv('PGBADGER_DATA')
     for instance, logs in log_refs.items():
         for log_file in logs:
-            log_file_data = client.download_db_log_file_portion(DBInstanceIdentifier=instance, LogFileName=log)
-            with open(f'/data/{log_file}.pglog', 'w') as log_file_write:
+            log_file_data = client.download_db_log_file_portion(DBInstanceIdentifier=instance, LogFileName=log_file)
+            with open(f'{pgbadger_dir}/{log_file}.log', 'w') as log_file_write:
                 log_file_write.writelines(log_file_data)
+
+
+def run_pgbadger():
+    os.system('pgbadger')
 
 
 if __name__ == '__main__':
     log_refs = get_logs()
     download_logs(log_refs)
+    run_pgbadger()
